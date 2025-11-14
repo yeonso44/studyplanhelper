@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>시험 공부 계획 도우미</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    h1 { margin-bottom: 8px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; }
+    .subjects label { font-weight: normal; display: inline-block; margin-right: 8px; }
+    button { padding: 8px 16px; cursor: pointer; }
+    .plan { margin-top: 24px; }
+    .subject-card {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+    .subject-name { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>시험 공부 계획 도우미</h1>
+  <p>시험까지 남은 일수와 과목을 넣으면, 하루 공부 시간을 과목별로 나눠줘요.</p>
+
+  <form id="plan-form">
+    <div class="field">
+      <label for="days_left">시험까지 남은 일수</label>
+      <input type="number" id="days_left" required min="1" value="10" />
+    </div>
+
+    <div class="field subjects">
+      <label>공부할 과목 (여러 개 선택 가능)</label>
+      <label><input type="checkbox" name="subject" value="korean" checked /> 국어</label>
+      <label><input type="checkbox" name="subject" value="math" /> 수학</label>
+      <label><input type="checkbox" name="subject" value="english" /> 영어</label>
+      <label><input type="checkbox" name="subject" value="science" /> 과학</label>
+      <label><input type="checkbox" name="subject" value="social" /> 사회</label>
+    </div>
+
+    <div class="field">
+      <label for="weak_subject">가장 자신 없는 과목 (선택)</label>
+      <select id="weak_subject">
+        <option value="">없음</option>
+        <option value="korean">국어</option>
+        <option value="math">수학</option>
+        <option value="english">영어</option>
+        <option value="science">과학</option>
+        <option value="social">사회</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="minutes_per_day">하루에 공부 가능한 시간(분)</label>
+      <input type="number" id="minutes_per_day" required min="30" step="10" value="120" />
+    </div>
+
+    <button type="submit">계획 세우기</button>
+  </form>
+
+  <div id="result" class="plan"></div>
+
+  <script>
+    const form = document.getElementById("plan-form");
+    const resultDiv = document.getElementById("result");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const daysLeft = Number(document.getElementById("days_left").value);
+      const minutesPerDay = Number(document.getElementById("minutes_per_day").value);
+      const weakSubject = document.getElementById("weak_subject").value || null;
+
+      const subjects = Array.from(
+        document.querySelectorAll("input[name='subject']:checked")
+      ).map((el) => el.value);
+
+      if (subjects.length === 0) {
+        alert("최소 한 개의 과목을 선택해주세요.");
+        return;
+      }
+
+      const payload = {
+        days_left: daysLeft,
+        subjects: subjects,
+        weak_subject: weakSubject,
+        minutes_per_day: minutesPerDay,
+      };
+
+      try {
+        const res = await fetch("http://localhost:8000/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          throw new Error("서버 오류");
+        }
+        const data = await res.json();
+        renderPlan(data);
+      } catch (err) {
+        console.error(err);
+        alert("계획 생성 중 오류가 발생했어요.");
+      }
+    });
+
+    function renderPlan(data) {
+      if (!data.plan || data.plan.length === 0) {
+        resultDiv.innerHTML = "<p>생성된 계획이 없어요. 입력값을 다시 확인해 주세요.</p>";
+        return;
+      }
+
+      let html = "";
+      html += `<h2>계획 결과</h2>`;
+      html += `<p>시험까지 ${data.days_left}일, 하루 ${data.minutes_per_day}분 기준 추천이에요.</p>`;
+
+      data.plan.forEach((item) => {
+        const subjectName = toKoreanSubject(item.subject);
+        html += `
+          <div class="subject-card">
+            <div class="subject-name">${subjectName}</div>
+            <div>하루 권장 공부 시간: <strong>${item.minutes_per_day}분</strong></div>
+            <div>${item.tip}</div>
+          </div>
+        `;
+      });
+
+      resultDiv.innerHTML = html;
+    }
+
+    function toKoreanSubject(code) {
+      switch (code) {
+        case "korean": return "국어";
+        case "math": return "수학";
+        case "english": return "영어";
+        case "science": return "과학";
+        case "social": return "사회";
+        default: return code;
+      }
+    }
+  </script>
+</body>
+</html>
